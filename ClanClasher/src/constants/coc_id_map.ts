@@ -1,0 +1,56 @@
+export const COC_ID_MAP: Record<number, string> = {
+  // --- HOME VILLAGE BUILDINGS ---
+  1000000: "Army Camp",
+  1000001: "Town Hall",
+  1000002: "Elixir Collector",
+  1000003: "Elixir Storage",
+  1000004: "Gold Mine",
+  1000005: "Gold Storage",
+  1000006: "Barracks",
+  1000007: "Laboratory",
+  1000008: "Cannon",
+  1000009: "Archer Tower",
+  1000010: "Wizard Tower",
+  1000011: "Air Defense",
+  1000012: "Mortar",
+  1000013: "Clan Castle",
+  1000014: "Hidden Tesla",
+  1000015: "Spell Factory",
+  1000016: "X-Bow",
+  1000017: "Dark Elixir Drill",
+  1000018: "Dark Elixir Storage",
+  1000019: "Dark Barracks",
+  1000020: "Dark Spell Factory",
+  1000021: "Inferno Tower",
+  1000022: "Air Sweeper",
+  1000023: "Eagle Artillery",
+  1000024: "Bomb Tower",
+  1000025: "Scattershot",
+  1000026: "Builder's Hut",
+  1000027: "Spell Tower",
+  1000028: "Monolith",
+  1000029: "Multi-Archer Tower",
+  1000030: "Ricochet Cannon",
+
+  // --- HEROES ---
+  2800000: "Barbarian King",
+  2800001: "Archer Queen",
+  2800002: "Grand Warden",
+  2800003: "Royal Champion",
+
+  // --- BUILDER BASE ---
+  107000000: "Builder Hall",
+  107000001: "Crusher",
+  107000002: "Double Cannon",
+  107000003: "Multi Mortar",
+  107000004: "Roaster",
+  107000005: "Giant Cannon",
+  107000006: "Mega Tesla",
+  107000007: "Lava Launcher",
+  107000008: "Air Defense (BB)",
+  107000009: "Guard Post",
+
+  // --- PETS & OTHERS ---
+  1000097: "Pet House",
+  1000098: "Blacksmith"
+};
