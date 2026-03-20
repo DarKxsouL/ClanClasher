@@ -15,6 +15,10 @@ dist-ssr
 .env
 clasherBackend/clanclasher-27m12-firebase-adminsdk-fbsvc-b26dcbbac4.json
 
+/userData.json
+
+# userData.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

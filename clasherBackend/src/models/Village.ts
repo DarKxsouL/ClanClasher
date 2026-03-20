@@ -9,7 +9,7 @@ export interface IVillage extends Document {
 }
 
 const VillageSchema: Schema = new Schema({
-  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
+  userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, unique: false },
   name: { type: String, default: "Main Base" }, // Added
   rawData: { type: Object, required: true },
   townHallLevel: { type: Number, default: 1 },

@@ -68,7 +68,7 @@ export const processVillageData = (rawData: any, dynamicMap: Record<number, stri
 
   return {
     id: rawData.tag,
-    name: customName || rawData.name || "Unnamed Village",
+    name: customName || rawData.name || "Unknown Village",
     townHallLevel: (rawData.buildings.find((b: any) => b.data === 1000001)?.lvl || 1) ,
     activeBuilders: builderUpgrades.length,
     totalBuilders: hasBob ? 6 : 5,

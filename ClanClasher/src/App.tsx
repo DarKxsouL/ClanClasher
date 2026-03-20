@@ -26,6 +26,7 @@ const AppContent = () => {
   const { user, loading } = useAuth();
   const [currentRawData, setCurrentRawData] = useState<any>(null);
   const [villages, setVillages] = useState<Village[]>([]);
+  const [villageRawDataMap, setVillageRawDataMap] = useState<Record<string, any>>({}); // Store raw data for each village
   const [activeVillage, setActiveVillage] = useState<Village | null>(null);
   const [globalStats, setGlobalStats] = useState<any>(null);
   const [idNameMap, setIdNameMap] = useState<Record<number, string>>({});
@@ -33,6 +34,7 @@ const AppContent = () => {
   const [refreshTick, setRefreshTick] = useState(0);
   const [perks, setPerks] = useState({ builder: 0, lab: 0 });
   const [isAddingNew, setIsAddingNew] = useState(false);
+  const [currentVillageName, setCurrentVillageName] = useState<string | undefined>();
 
 
   // 1. Fetch ID Map from MongoDB
@@ -56,10 +58,18 @@ const AppContent = () => {
   useEffect(() => {
     if (currentRawData && Object.keys(idNameMap).length > 0) {
       console.log("⏰ Updating UI timers...");
-      const mapped = processVillageData(currentRawData, idNameMap);
+      const mapped = processVillageData(currentRawData, idNameMap, perks, currentVillageName);
       setActiveVillage(mapped);
     }
-  }, [currentRawData, idNameMap, refreshTick]);
+  }, [currentRawData, idNameMap, refreshTick, perks, currentVillageName]);
+
+  // 4. Recalculate stats when perks change
+  useEffect(() => {
+    if (currentRawData && activeVillage) {
+      console.log("💰 Perks changed, recalculating stats...");
+      fetchStats(currentRawData, activeVillage.townHallLevel);
+    }
+  }, [perks]);
 
 
   // // 2. Auto-load saved village on login
@@ -89,8 +99,15 @@ const AppContent = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       
-      const processed = res.data.map((v: any) => processVillageData(v.rawData, idNameMap, v.name));
+      const processed = res.data.map((v: any) => processVillageData(v.rawData, idNameMap, perks, v.name));
       setVillages(processed);
+
+      // Store raw data for quick access when switching villages
+      const rawDataMap: Record<string, any> = {};
+      res.data.forEach((v: any) => {
+        rawDataMap[v.rawData.tag] = v.rawData;
+      });
+      setVillageRawDataMap(rawDataMap);
 
       // Auto-switch to the first village ONLY if we aren't currently adding one
       // if (processed.length > 0 && !activeVillage && !isAddingNew) {
@@ -111,17 +128,29 @@ const AppContent = () => {
     try {
       const rawData = JSON.parse(jsonInput);
       setCurrentRawData(rawData);
+      setCurrentVillageName("Loading Name...");
       
-      // Temporary "Loading" name until DB responds
-      const mapped = processVillageData(rawData, idNameMap, "Loading Name...");
+      // Show loading state with temporary name
+      const mapped = processVillageData(rawData, idNameMap, perks, "Loading Name...");
       setActiveVillage(mapped);
       
       await fetchStats(rawData, mapped.townHallLevel);
       
       if (user) {
-        await saveToCloud(rawData, mapped.townHallLevel);
-        // Refresh the list from DB and select the one we just saved
-        await fetchUserVillages(true); 
+        const saveResult = await saveToCloud(rawData, mapped.townHallLevel);
+        
+        if (saveResult && saveResult.success) {
+          // Update the raw data map with the newly saved village
+          setVillageRawDataMap(prev => ({
+            ...prev,
+            [rawData.tag]: rawData
+          }));
+          
+          // Refresh the list from DB and select the one we just saved
+          await fetchUserVillages(true);
+        } else {
+          console.warn("Save returned false:", saveResult);
+        }
       }
     } catch (err) { 
       console.error("Import Error", err);
@@ -133,8 +162,9 @@ const AppContent = () => {
     if (!user || !activeVillage) return;
     try {
       const token = await user.getIdToken();
-      // Pass the specific tag to delete
-      await axios.delete(`${API_BASE}/village/delete/${activeVillage.id}`, {
+      // URL encode the tag to handle the '#' character properly
+      const encodedTag = encodeURIComponent(activeVillage.id);
+      await axios.delete(`${API_BASE}/village/delete/${encodedTag}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       
@@ -166,12 +196,20 @@ const AppContent = () => {
       setActiveVillage(null);
       setGlobalStats(null);
       setCurrentRawData(null);
+      setCurrentVillageName(undefined);
     } else {
       setIsAddingNew(false);
+      // IMPORTANT: Clear stats IMMEDIATELY to avoid showing old stats from previous village
+      setGlobalStats(null);
       setActiveVillage(v);
-      if (raw) {
-        setCurrentRawData(raw);
-        fetchStats(raw, v.townHallLevel);
+      setCurrentVillageName(v.name);
+      
+      // If raw data not provided, try to get it from the map
+      const rawDataToUse = raw || villageRawDataMap[v.id];
+      if (rawDataToUse) {
+        setCurrentRawData(rawDataToUse);
+        // Fetch fresh stats for this village
+        fetchStats(rawDataToUse, v.townHallLevel);
       }
     }
   };
@@ -200,18 +238,20 @@ const AppContent = () => {
   // };
 
   const saveToCloud = async (rawData: any, th: number) => {
-    if (!user) return;
+    if (!user) return null;
     
     setIsSyncing(true);
     try {
       const token = await user?.getIdToken();
-      await axios.post(`${API_BASE}/village/save`, 
+      const res = await axios.post(`${API_BASE}/village/save`, 
         { rawData, townHallLevel: th },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       console.log("☁️ Data synced to MongoDB");
+      return res.data;
     } catch (err) {
       console.error("Cloud sync failed", err);
+      return null;
     } finally {
       setIsSyncing(false);
     }

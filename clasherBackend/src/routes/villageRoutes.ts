@@ -1,5 +1,5 @@
-
 import { Router } from 'express';
+import mongoose from 'mongoose';
 import { calculateProgress } from '../services/trackerService';
 import BuildingData from '../models/BuildingData';
 import User from '../models/User';
@@ -22,17 +22,66 @@ router.post('/calculate-stats', async (req, res) => {
   }
 });
 
+// Helper to get a single collection's _id->name map
+const getDb = () => {
+  const db = mongoose.connection.db;
+  if (!db) throw new Error('MongoDB connection is not ready');
+  return db;
+};
+
+const getIdNamePairs = async (collectionName: string) => {
+  const db = getDb();
+  const docs = await db
+    .collection(collectionName)
+    .find({}, { projection: { _id: 1, name: 1 } })
+    .toArray();
+  return docs as Array<{ _id: any; name: string }>;
+};
+
 // @route   GET api/village/id-map
 router.get('/id-map', async (req, res) => {
   try {
-    const buildings = await BuildingData.find({}, '_id name');
-    const map: Record<number, string> = {};
-    
-    buildings.forEach(b => {
-      map[b._id as number] = b.name as string;
-    });
+    const collections = ['buildings', 'traps', 'troops', 'guardians', 'spells', 'heroes', 'pets', 'equipment', 'helpers'];
+    const map: Record<string, string> = {};
+
+    for (const collectionName of collections) {
+      const docs = await getIdNamePairs(collectionName);
+      docs.forEach((doc) => {
+        if (doc && doc._id != null) {
+          map[String(doc._id)] = doc.name;
+        }
+      });
+    }
 
     res.json(map);
+  } catch (error: any) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// @route   GET api/village/game-data
+router.get('/game-data', async (req, res) => {
+  try {
+    const db = getDb();
+    const collections = ['buildings', 'traps', 'troops', 'guardians', 'spells', 'heroes', 'pets', 'equipment', 'helpers'];
+
+    const results = await Promise.all(
+      collections.map((name) => db.collection(name).find({}).toArray())
+    );
+
+    const [buildings, traps, troops, guardians, spells, heroes, pets, equipment, helpers] = results;
+
+    res.json({
+      buildings,
+      traps,
+      troops,
+      guardians,
+      spells,
+      heroes,
+      pets,
+      equipment,
+      helpers,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
   }
@@ -60,24 +109,38 @@ router.post('/save', verifyToken, async (req: any, res) => {
       console.warn("Could not fetch name from API, using fallback");
     }
 
-    // 2. Save or Update the village data
-    const savedVillage = await Village.findOneAndUpdate(
-      { userId: user._id, "rawData.tag": rawData.tag },
-      { 
-        rawData, 
-        townHallLevel, 
-        name: playerName,
-        updatedAt: new Date() 
-      },
-      { upsert: true, new: true, setDefaultsOnInsert: true }
-    );
+    // 2. Check for existing village with the same tag
+    const existingVillage = await Village.findOne({ userId: user._id, "rawData.tag": rawData.tag });
 
-    // FIX: Update User's village array in MongoDB Atlas
-    await User.findByIdAndUpdate(user._id, {
-      $addToSet: { villages: savedVillage._id }
-    });
+    if (existingVillage) {
+      // Check timestamp: only update if new data is newer
+      if (rawData.timestamp > existingVillage.rawData.timestamp) {
+        existingVillage.rawData = rawData;
+        existingVillage.townHallLevel = townHallLevel;
+        existingVillage.name = playerName;
+        existingVillage.updatedAt = new Date();
+        await existingVillage.save();
+        res.status(200).json({ success: true, village: existingVillage, message: 'Village updated with newer data' });
+      } else {
+        res.status(200).json({ success: false, message: 'Data is not newer than existing village' });
+      }
+    } else {
+      // Create new village
+      const newVillage = new Village({
+        userId: user._id,
+        rawData,
+        townHallLevel,
+        name: playerName
+      });
+      const savedVillage = await newVillage.save();
 
-    res.status(200).json({ success: true, village: savedVillage });
+      // Update User's village array
+      await User.findByIdAndUpdate(user._id, {
+        $addToSet: { villages: savedVillage._id }
+      });
+
+      res.status(200).json({ success: true, village: savedVillage, message: 'New village added' });
+    }
   } catch (err: any) {
     console.error("Save error:", err);
     res.status(500).json({ error: "Server error while saving village" });
@@ -104,16 +167,20 @@ router.delete('/delete/:tag', verifyToken, async (req: any, res) => {
     const user = await User.findOne({ firebaseUid: req.user.uid });
     if (!user) return res.status(404).json({ error: "User not found" });
 
+    // Decode the tag in case it's URL encoded (to handle '#' characters)
+    const tag = decodeURIComponent(req.params.tag);
+    
     const village = await Village.findOneAndDelete({ 
       userId: user._id, 
-      "rawData.tag": req.params.tag 
+      "rawData.tag": tag 
     });
 
     if (village) {
       await User.findByIdAndUpdate(user._id, { $pull: { villages: village._id } });
+      res.json({ success: true, message: "Village deleted successfully" });
+    } else {
+      res.status(404).json({ error: "Village not found" });
     }
-
-    res.json({ success: true, message: "Village deleted successfully" });
   } catch (err: any) {
     res.status(500).json({ error: "Server error while deleting village" });
   }

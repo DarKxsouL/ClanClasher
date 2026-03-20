@@ -89,17 +89,27 @@ const Home: React.FC<HomeProps> = ({ activeVillage, stats, perks, setPerks, onIm
           <div className="bg-[#1D2E3E]/80 p-6 rounded-3xl border border-white/10">
             <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-purple-400"><IoFlask /> Laboratory Research</h3>
             <div className="space-y-4">
-              {activeVillage.labUpgrades?.map((item: any) => (
-                <div key={item.id} className="bg-purple-500/5 p-4 rounded-xl border border-purple-500/10">
-                  <div className="flex justify-between text-sm mb-2">
-                    <span className="font-bold">{item.name} <span className="text-xs font-normal opacity-50">Lvl {item.currentLevel}</span></span>
-                    <span className="text-purple-400 font-mono text-xs">{item.finishTime}</span>
+              {activeVillage.labUpgrades && activeVillage.labUpgrades.length > 0 ? (
+                activeVillage.labUpgrades.map((item: any) => (
+                  <div key={item.id} className="bg-purple-500/5 p-4 rounded-xl border border-purple-500/10">
+                    <div className="flex justify-between text-sm mb-2">
+                      <span className="font-bold">{item.name} <span className="text-xs font-normal opacity-50">Lvl {item.currentLevel}</span></span>
+                      <span className="text-purple-400 font-mono text-xs">{item.finishTime}</span>
+                    </div>
+                    <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                      <div className="bg-purple-500 h-full" style={{ width: getProgressWidth(item.dataId, item.remainingSeconds) }} />
+                    </div>
                   </div>
-                  <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                    <div className="bg-purple-500 h-full" style={{ width: getProgressWidth(item.dataId, item.remainingSeconds) }} />
+                ))
+              ) : (
+                <div className="bg-purple-500/10 p-6 rounded-xl border border-purple-500/10 text-center text-sm text-purple-200">
+                  <div className="flex flex-col items-center gap-2">
+                    <IoShieldCheckmark className="text-purple-300" size={24} />
+                    <span className="font-semibold">Lab is free</span>
+                    <span className="text-xs text-purple-200/80">No research is currently in progress.</span>
                   </div>
                 </div>
-              ))}
+              )}
             </div>
           </div>
         </div>
@@ -107,20 +117,42 @@ const Home: React.FC<HomeProps> = ({ activeVillage, stats, perks, setPerks, onIm
         <div className="bg-[#1D2E3E]/80 p-6 rounded-3xl border border-white/10">
           <h3 className="text-lg font-bold mb-4 flex items-center gap-2 text-orange-400"><IoHammer /> Active Builders</h3>
           <div className="space-y-4">
-            {activeVillage.builderUpgrades?.map((item: any) => (
-              <div key={item.id} className="bg-black/20 p-4 rounded-xl border border-white/5 relative group">
-                <div className="flex justify-between text-sm mb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold">{item.name}</span>
-                    {item.boosted && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 flex items-center gap-1"><IoFlash size={10} /> 10x BOOST</span>}
-                  </div>
-                  <span className="text-orange-400 font-mono text-xs">{item.finishTime}</span>
-                </div>
-                <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
-                  <div className="bg-orange-500 h-full transition-all" style={{ width: getProgressWidth(item.dataId, item.remainingSeconds) }} />
-                </div>
-              </div>
-            ))}
+            {(() => {
+              const activeUpgrades = activeVillage.builderUpgrades || [];
+              const freeCount = activeVillage.totalBuilders - activeVillage.activeBuilders;
+              const items = [
+                ...activeUpgrades.map((upgrade: any) => ({ type: 'active', data: upgrade })),
+                ...Array.from({ length: freeCount }, () => ({ type: 'free' }))
+              ];
+              return items.map((item, index) => {
+                if (item.type === 'active') {
+                  return (
+                    <div key={item.data.id} className="bg-black/20 p-4 rounded-xl border border-white/5 relative group">
+                      <div className="flex justify-between text-sm mb-2">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold">{item.data.name}</span>
+                          {item.data.boosted && <span className="text-[10px] bg-blue-500/20 text-blue-400 px-1.5 py-0.5 rounded border border-blue-500/20 flex items-center gap-1"><IoFlash size={10} /> 10x BOOST</span>}
+                        </div>
+                        <span className="text-orange-400 font-mono text-xs">{item.data.finishTime}</span>
+                      </div>
+                      <div className="w-full bg-gray-800 h-1.5 rounded-full overflow-hidden">
+                        <div className="bg-orange-500 h-full transition-all" style={{ width: getProgressWidth(item.data.dataId, item.data.remainingSeconds) }} />
+                      </div>
+                    </div>
+                  );
+                } else {
+                  return (
+                    <div key={`free-${index}`} className="bg-black/10 p-6 rounded-xl border border-white/10 text-center text-sm text-gray-300">
+                      <div className="flex flex-col items-center gap-2">
+                        <IoShieldCheckmark className="text-green-300" size={24} />
+                        <span className="font-semibold">Builder is free</span>
+                        <span className="text-xs text-gray-400">Ready for new upgrades.</span>
+                      </div>
+                    </div>
+                  );
+                }
+              });
+            })()}
           </div>
         </div>
       </div>
